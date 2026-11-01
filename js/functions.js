@@ -1,1 +1,166 @@
-var $window=$(window),gardenCtx,gardenCanvas,$garden,garden;var clientWidth=$(window).width();var clientHeight=$(window).height();$(function(){$loveHeart=$("#loveHeart");var a=$loveHeart.width()/2;var b=$loveHeart.height()/2-55;$garden=$("#garden");gardenCanvas=$garden[0];gardenCanvas.width=$("#loveHeart").width();gardenCanvas.height=$("#loveHeart").height();gardenCtx=gardenCanvas.getContext("2d");gardenCtx.globalCompositeOperation="lighter";garden=new Garden(gardenCtx,gardenCanvas);$("#content").css("width",$loveHeart.width()+$("#code").width());$("#content").css("height",Math.max($loveHeart.height(),$("#code").height()));$("#content").css("margin-top",Math.max(($window.height()-$("#content").height())/2,10));$("#content").css("margin-left",Math.max(($window.width()-$("#content").width())/2,10));setInterval(function(){garden.render()},Garden.options.growSpeed)});$(window).resize(function(){var b=$(window).width();var a=$(window).height();if(b!=clientWidth&&a!=clientHeight){location.replace(location)}});function getHeartPoint(c){var b=c/Math.PI;var a=19.5*(16*Math.pow(Math.sin(b),3));var d=-20*(13*Math.cos(b)-5*Math.cos(2*b)-2*Math.cos(3*b)-Math.cos(4*b));return new Array(offsetX+a,offsetY+d)}function startHeartAnimation(){var c=50;var d=10;var b=new Array();var a=setInterval(function(){var h=getHeartPoint(d);var e=true;for(var f=0;f<b.length;f++){var g=b[f];var j=Math.sqrt(Math.pow(g[0]-h[0],2)+Math.pow(g[1]-h[1],2));if(j<Garden.options.bloomRadius.max*1.3){e=false;break}}if(e){b.push(h);garden.createRandomBloom(h[0],h[1])}if(d>=30){clearInterval(a);showMessages()}else{d+=0.2}},c)}(function(a){a.fn.typewriter=function(){this.each(function(){var d=a(this),c=d.html(),b=0;d.html("");var e=setInterval(function(){var f=c.substr(b,1);if(f=="<"){b=c.indexOf(">",b)+1}else{b++}d.html(c.substring(0,b)+(b&1?"_":""));if(b>=c.length){clearInterval(e)}},75)});return this}})(jQuery);function timeElapse(c){var e=Date();var f=(Date.parse(e)-Date.parse(c))/1000;var g=Math.floor(f/(3600*24));f=f%(3600*24);var b=Math.floor(f/3600);if(b<10){b="0"+b}f=f%3600;var d=Math.floor(f/60);if(d<10){d="0"+d}f=f%60;if(f<10){f="0"+f}var a='<span class="digit">'+g+'</span> days <span class="digit">'+b+'</span> hours <span class="digit">'+d+'</span> minutes <span class="digit">'+f+"</span> seconds";$("#elapseClock").html(a)}function showMessages(){adjustWordsPosition();$("#messages").fadeIn(5000,function(){showLoveU()})}function adjustWordsPosition(){$("#words").css("position","absolute");$("#words").css("top",$("#garden").position().top+195);$("#words").css("left",$("#garden").position().left+70)}function adjustCodePosition(){$("#code").css("margin-top",($("#garden").height()-$("#code").height())/2)}function showLoveU(){$("#loveu").fadeIn(3000)};
+(() => {
+  "use strict";
+
+  const fadeKeyframes = Array.from({ length: 61 }, (_, step) => ({
+    opacity: (1 - Math.cos((Math.PI * step) / 60)) / 2,
+    offset: step / 60
+  }));
+
+  document.addEventListener("DOMContentLoaded", initialize, { once: true });
+
+  function initialize() {
+    const loveHeart = document.getElementById("loveHeart");
+    const canvas = document.getElementById("garden");
+    const code = document.getElementById("code");
+    const context = canvas.getContext?.("2d");
+
+    if (!context) {
+      const message = document.createElement("div");
+      message.id = "errorMsg";
+      message.textContent =
+        "Your browser doesn't support Canvas. Please use a modern browser.";
+      document.body.appendChild(message);
+      code.style.display = "none";
+      return;
+    }
+
+    canvas.width = loveHeart.clientWidth;
+    canvas.height = loveHeart.clientHeight;
+    context.globalCompositeOperation = "lighter";
+    const garden = new Garden(context);
+    const offsetX = canvas.width / 2;
+    const offsetY = canvas.height / 2 - 55;
+
+    // Mobile browsers can expand the layout viewport for this fixed-width page.
+    // Keep the original window-based centering while CSS owns the layout.
+    function updateViewport() {
+      document.documentElement.style.setProperty(
+        "--viewport-width",
+        `${window.innerWidth}px`
+      );
+      document.documentElement.style.setProperty(
+        "--viewport-height",
+        `${window.innerHeight}px`
+      );
+    }
+
+    // Measure before adding the outer gutter, matching the original layout order.
+    const content = document.getElementById("content");
+    content.style.marginInlineStart = "0px";
+    updateViewport();
+    content.style.removeProperty("margin-inline-start");
+    window.addEventListener("resize", updateViewport);
+    let heartComplete = false;
+    const renderTimer = setInterval(() => {
+      garden.render();
+      if (heartComplete && garden.isIdle) clearInterval(renderTimer);
+    }, Garden.frameInterval);
+
+    const messages = document.getElementById("messages");
+    const loveNote = document.getElementById("loveu");
+    setTimeout(() => {
+      startHeartAnimation(garden, offsetX, offsetY, async () => {
+        heartComplete = true;
+        await fadeIn(messages, 5000);
+        await fadeIn(loveNote, 3000);
+      });
+    }, 3000);
+
+    // Preserve the original date: February 1, 2011, in the visitor's local time.
+    const updateClock = createClock(
+      document.getElementById("elapseClock"),
+      new Date(2011, 1, 1)
+    );
+    updateClock();
+    setInterval(updateClock, 500);
+    typewriter(code);
+  }
+
+  function getHeartPoint(angle, offsetX, offsetY) {
+    const t = angle / Math.PI;
+    const x = 19.5 * (16 * Math.sin(t) ** 3);
+    const y =
+      -20 *
+      (13 * Math.cos(t) -
+        5 * Math.cos(2 * t) -
+        2 * Math.cos(3 * t) -
+        Math.cos(4 * t));
+    return [offsetX + x, offsetY + y];
+  }
+
+  function startHeartAnimation(garden, offsetX, offsetY, onComplete) {
+    const heart = [];
+    let angle = 10;
+    const minDistance = Garden.options.bloomRadius.max * 1.3;
+    const timer = setInterval(() => {
+      const point = getHeartPoint(angle, offsetX, offsetY);
+      const canDraw = heart.every(
+        ([x, y]) => Math.hypot(x - point[0], y - point[1]) >= minDistance
+      );
+
+      if (canDraw) {
+        heart.push(point);
+        garden.createRandomBloom(point[0], point[1]);
+      }
+      if (angle >= 30) {
+        clearInterval(timer);
+        onComplete();
+      } else {
+        angle += 0.2;
+      }
+    }, 50);
+  }
+
+  function typewriter(element) {
+    const html = element.innerHTML;
+    let progress = 0;
+    element.innerHTML = "";
+    const timer = setInterval(() => {
+      if (html[progress] === "<") {
+        progress = html.indexOf(">", progress) + 1;
+      } else {
+        progress++;
+      }
+      const complete = progress >= html.length;
+      element.innerHTML =
+        html.slice(0, progress) + (!complete && progress % 2 === 1 ? "_" : "");
+      if (complete) clearInterval(timer);
+    }, 75);
+  }
+
+  function createClock(element, startDate) {
+    const units = ["days", "hours", "minutes", "seconds"];
+    const digits = units.map((unit, index) => {
+      const digit = document.createElement("span");
+      digit.className = "digit";
+      element.append(digit, ` ${unit}${index < units.length - 1 ? " " : ""}`);
+      return digit;
+    });
+    const startTime = startDate.getTime();
+    let previousSeconds;
+
+    return () => {
+      const seconds = Math.floor((Date.now() - startTime) / 1000);
+      if (seconds === previousSeconds) return;
+      previousSeconds = seconds;
+      const values = [
+        Math.floor(seconds / 86400),
+        Math.floor((seconds % 86400) / 3600),
+        Math.floor((seconds % 3600) / 60),
+        seconds % 60
+      ];
+      digits.forEach((digit, index) => {
+        digit.textContent = String(values[index]).padStart(
+          index === 0 ? 1 : 2,
+          "0"
+        );
+      });
+    };
+  }
+
+  async function fadeIn(element, duration) {
+    element.style.display = "block";
+    await element.animate(fadeKeyframes, { duration, easing: "linear" })
+      .finished;
+  }
+})();
